@@ -2,13 +2,16 @@ import asyncio
 import logging
 import os
 import subprocess
+from dotenv import load_dotenv
 import yt_dlp
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.types import FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton
 
-# Telegram bot token
-BOT_TOKEN = "8617618303:AAHJOrUSPANSM4hjjnWD5mk2j0w8IDjXRzI"
+load_dotenv()
+
+# Telegram bot token (override with BOT_TOKEN in .env or environment variable)
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8617618303:AAHJOrUSPANSM4hjjnWD5mk2j0w8IDjXRzI")
 
 # Bot va dispatcher
 bot = Bot(token=BOT_TOKEN)
