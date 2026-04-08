@@ -2,32 +2,20 @@ import asyncio
 import logging
 import os
 import subprocess
-from dotenv import load_dotenv
 import yt_dlp
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.types import FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton
 
-load_dotenv()
-
-# Telegram bot token (override with BOT_TOKEN in .env or environment variable)
-BOT_TOKEN = os.getenv("BOT_TOKEN", "8617618303:AAHJOrUSPANSM4hjjnWD5mk2j0w8IDjXRzI")
+# Telegram bot token
+BOT_TOKEN = "8617618303:AAHJOrUSPANSM4hjjnWD5mk2j0w8IDjXRzI"
 
 # Bot va dispatcher
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
 # Logging
-LOG_FILE = "bot.log"
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler(LOG_FILE, encoding="utf-8")
-    ]
-)
-logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 # Downloads papkasi
 DOWNLOAD_PATH = "downloads"
@@ -59,7 +47,6 @@ async def start_handler(message: types.Message):
 @dp.message(F.text.regexp(r"(https?://)?(www\.)?instagram\.com/(p|reel|tv|stories|highlights)/[\w\-]+/?"))
 async def handle_instagram_link(message: types.Message):
     url = message.text
-    logger.info('Received Instagram download request from %s: %s', message.from_user.id, url)
     msg = await message.answer(
         "⏳ **Yuklanmoqda...**\n\nIltimos, biroz kuting 🚀",
         parse_mode="Markdown"
@@ -81,12 +68,10 @@ async def handle_instagram_link(message: types.Message):
         if os.path.exists('cookies.txt'):
             ydl_opts['cookiefile'] = 'cookies.txt'
 
-        logger.info('Starting download for Instagram URL: %s', url)
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             input_file = ydl.prepare_filename(info)
 
-        logger.info('Download finished. Candidate file: %s', input_file)
         if os.path.exists(input_file):
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="🎵 Faqat audio yuklash", callback_data=f"audio_{info['id']}")]
@@ -111,7 +96,7 @@ async def handle_instagram_link(message: types.Message):
             )
 
     except Exception as e:
-        logger.exception('Error downloading video')
+        logging.error(f"Error downloading video: {e}")
         await msg.edit_text(
             "❌ **Yuklab bo‘lmadi**\n\n"
             "🔁 Iltimos, linkni tekshirib qayta yuboring.\n"
@@ -123,7 +108,6 @@ async def handle_instagram_link(message: types.Message):
 @dp.callback_query(F.data.startswith("audio_"))
 async def process_audio(callback: types.CallbackQuery):
     video_id = callback.data.split("_")[1]
-    logger.info('Audio extraction requested for video_id=%s by user=%s', video_id, callback.from_user.id if callback.from_user else 'unknown')
     input_file = None
 
     # Faylni topish
@@ -146,12 +130,9 @@ async def process_audio(callback: types.CallbackQuery):
 
     try:
         # FFmpeg orqali audio ajratish
-        ffmpeg_cmd = [
+        subprocess.run([
             "ffmpeg", "-i", input_file, "-vn", "-acodec", "libmp3lame", "-q:a", "2", output_audio, "-y"
-        ]
-        logger.info('Running ffmpeg command: %s', ' '.join(ffmpeg_cmd))
-        completed = subprocess.run(ffmpeg_cmd, check=True, capture_output=True, text=True)
-        logger.info('ffmpeg stdout=%s stderr=%s', completed.stdout, completed.stderr)
+        ], check=True, capture_output=True)
 
         audio_file = FSInputFile(output_audio)
         await bot.send_audio(
@@ -169,7 +150,7 @@ async def process_audio(callback: types.CallbackQuery):
             os.remove(input_file)
 
     except Exception as e:
-        logger.exception('Error extracting audio')
+        logging.error(f"Error extracting audio: {e}")
         await processing_msg.edit_text(
             "❌ **Audio ajratib bo‘lmadi**\n\n🔁 Qayta urinib ko‘ring.",
             parse_mode="Markdown"
@@ -177,9 +158,6 @@ async def process_audio(callback: types.CallbackQuery):
 
 # Botni ishga tushirish
 async def main():
-    logger.info('Bot starting with token ending in %s', BOT_TOKEN[-8:])
-    logger.info('Working directory: %s', os.getcwd())
-    logger.info('Downloads path: %s', DOWNLOAD_PATH)
     print("🤖 Bot ishga tushdi!")
     await dp.start_polling(bot)
 
