@@ -73,6 +73,12 @@ async def handle_instagram_link(message: types.Message):
             'retries': 5,  # Qayta urinishlar sonini oshirish
             'fragment_retries': 5,
             'geo_bypass': True,  # Geo-blokdan o'tish
+            'impersonate': 'chrome-110',  # Browserni taqlid qilish
+            'extractor_args': {
+                'instagram': {
+                    'http_timeout': 60,
+                }
+            },
         }
         if os.path.exists('cookies.txt'):
             ydl_opts['cookiefile'] = 'cookies.txt'
