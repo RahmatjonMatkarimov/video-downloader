@@ -18,7 +18,11 @@ bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
 # Logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 # Downloads papkasi
 DOWNLOAD_PATH = "downloads"
@@ -71,10 +75,12 @@ async def handle_instagram_link(message: types.Message):
         if os.path.exists('cookies.txt'):
             ydl_opts['cookiefile'] = 'cookies.txt'
 
+        logger.info('Starting download for Instagram URL: %s', url)
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             input_file = ydl.prepare_filename(info)
 
+        logger.info('Download finished. Candidate file: %s', input_file)
         if os.path.exists(input_file):
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="🎵 Faqat audio yuklash", callback_data=f"audio_{info['id']}")]
@@ -99,7 +105,7 @@ async def handle_instagram_link(message: types.Message):
             )
 
     except Exception as e:
-        logging.error(f"Error downloading video: {e}")
+        logger.exception('Error downloading video')
         await msg.edit_text(
             "❌ **Yuklab bo‘lmadi**\n\n"
             "🔁 Iltimos, linkni tekshirib qayta yuboring.\n"
@@ -133,9 +139,12 @@ async def process_audio(callback: types.CallbackQuery):
 
     try:
         # FFmpeg orqali audio ajratish
-        subprocess.run([
+        ffmpeg_cmd = [
             "ffmpeg", "-i", input_file, "-vn", "-acodec", "libmp3lame", "-q:a", "2", output_audio, "-y"
-        ], check=True, capture_output=True)
+        ]
+        logger.info('Running ffmpeg command: %s', ' '.join(ffmpeg_cmd))
+        completed = subprocess.run(ffmpeg_cmd, check=True, capture_output=True, text=True)
+        logger.info('ffmpeg stdout=%s stderr=%s', completed.stdout, completed.stderr)
 
         audio_file = FSInputFile(output_audio)
         await bot.send_audio(
@@ -153,7 +162,7 @@ async def process_audio(callback: types.CallbackQuery):
             os.remove(input_file)
 
     except Exception as e:
-        logging.error(f"Error extracting audio: {e}")
+        logger.exception('Error extracting audio')
         await processing_msg.edit_text(
             "❌ **Audio ajratib bo‘lmadi**\n\n🔁 Qayta urinib ko‘ring.",
             parse_mode="Markdown"
