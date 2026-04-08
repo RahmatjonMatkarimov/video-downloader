@@ -1,6 +1,2 @@
-aiogram
-yt-dlp
-ffmpeg-python
-python-dotenv
-instaloader
-curl-cffi
+aiogram>=3.0,<4.0
+yt-dlp>=2024.1.0
