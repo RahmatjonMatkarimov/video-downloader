@@ -18,9 +18,14 @@ bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
 # Logging
+LOG_FILE = "bot.log"
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler(LOG_FILE, encoding="utf-8")
+    ]
 )
 logger = logging.getLogger(__name__)
 
@@ -54,6 +59,7 @@ async def start_handler(message: types.Message):
 @dp.message(F.text.regexp(r"(https?://)?(www\.)?instagram\.com/(p|reel|tv|stories|highlights)/[\w\-]+/?"))
 async def handle_instagram_link(message: types.Message):
     url = message.text
+    logger.info('Received Instagram download request from %s: %s', message.from_user.id, url)
     msg = await message.answer(
         "⏳ **Yuklanmoqda...**\n\nIltimos, biroz kuting 🚀",
         parse_mode="Markdown"
@@ -117,6 +123,7 @@ async def handle_instagram_link(message: types.Message):
 @dp.callback_query(F.data.startswith("audio_"))
 async def process_audio(callback: types.CallbackQuery):
     video_id = callback.data.split("_")[1]
+    logger.info('Audio extraction requested for video_id=%s by user=%s', video_id, callback.from_user.id if callback.from_user else 'unknown')
     input_file = None
 
     # Faylni topish
@@ -170,6 +177,9 @@ async def process_audio(callback: types.CallbackQuery):
 
 # Botni ishga tushirish
 async def main():
+    logger.info('Bot starting with token ending in %s', BOT_TOKEN[-8:])
+    logger.info('Working directory: %s', os.getcwd())
+    logger.info('Downloads path: %s', DOWNLOAD_PATH)
     print("🤖 Bot ishga tushdi!")
     await dp.start_polling(bot)
 
