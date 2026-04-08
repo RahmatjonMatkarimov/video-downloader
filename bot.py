@@ -3,6 +3,7 @@ import logging
 import os
 import subprocess
 import yt_dlp
+import instaloader
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.types import FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton
@@ -44,7 +45,7 @@ async def start_handler(message: types.Message):
     )
 
 # Instagram link qabul qilish
-@dp.message(F.text.regexp(r"(https?://)?(www\.)?instagram\.com/(p|reel|tv|stories|highlights)/[\w\-]+/?"))
+@dp.message(F.text.regexp(r"(https?://)?(www\.)?instagram\.com/(p|reel|tv|stories|highlights)/([\w\-]+)/?"))
 async def handle_instagram_link(message: types.Message):
     url = message.text
     msg = await message.answer(
@@ -53,65 +54,61 @@ async def handle_instagram_link(message: types.Message):
     )
 
     try:
-        # yt-dlp parametrlari
-        output_template = f"{DOWNLOAD_PATH}/%(id)s.%(ext)s"
-        ydl_opts = {
-            'outtmpl': output_template,
-            'format': 'best',
-            'quiet': True,
-            'no_warnings': True,
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'Accept-Encoding': 'gzip, deflate',
-                'Connection': 'keep-alive',
-                'Upgrade-Insecure-Requests': '1',
-            },
-            'http_timeout': 60,  # HTTP timeoutni 60 soniyaga oshirish
-            'retries': 5,  # Qayta urinishlar sonini oshirish
-            'fragment_retries': 5,
-            'geo_bypass': True,  # Geo-blokdan o'tish
-            'impersonate': 'chrome',  # Browserni taqlid qilish
-            'extractor_args': {
-                'instagram': {
-                    'http_timeout': 60,
-                }
-            },
-        }
-        if os.path.exists('cookies.txt'):
-            ydl_opts['cookiefile'] = 'cookies.txt'
+        # Shortcode ni olish
+        import re
+        match = re.search(r'instagram\.com/(p|reel|tv|stories|highlights)/([\w\-]+)', url)
+        if not match:
+            raise ValueError("Invalid URL")
+        shortcode = match.group(2)
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            input_file = ydl.prepare_filename(info)
+        # Instaloader bilan yuklash
+        L = instaloader.Instaloader()
+        L.dirname_pattern = DOWNLOAD_PATH
+        post = instaloader.Post.from_shortcode(L.context, shortcode)
+        L.download_post(post, target=DOWNLOAD_PATH)
 
-        if os.path.exists(input_file):
-            keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🎵 Faqat audio yuklash", callback_data=f"audio_{info['id']}")]
-            ])
-            video_file = FSInputFile(input_file)
-            await bot.send_video(
-                message.chat.id,
-                video_file,
-                caption="📥 **Video tayyor!**\n\n🎯 Yana yuklash uchun boshqa link yuboring.\n\n🤖 @video\\_yuklab\\_ber\\_bot",
-                reply_markup=keyboard,
-                parse_mode="Markdown"
-            )
+        # Faylni topish
+        input_file = None
+        for file in os.listdir(DOWNLOAD_PATH):
+            if file.startswith(shortcode) and (file.endswith('.mp4') or file.endswith('.jpg')):
+                input_file = os.path.join(DOWNLOAD_PATH, file)
+                break
+
+        if input_file and os.path.exists(input_file):
+            if input_file.endswith('.mp4'):
+                keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="🎵 Faqat audio yuklash", callback_data=f"audio_{shortcode}")]
+                ])
+                video_file = FSInputFile(input_file)
+                await bot.send_video(
+                    message.chat.id,
+                    video_file,
+                    caption="📥 **Video tayyor!**\n\n🎯 Yana yuklash uchun boshqa link yuboring.\n\n🤖 @video\\_yuklab\\_ber\\_bot",
+                    reply_markup=keyboard,
+                    parse_mode="Markdown"
+                )
+            else:
+                # Agar rasm bo'lsa
+                photo_file = FSInputFile(input_file)
+                await bot.send_photo(
+                    message.chat.id,
+                    photo_file,
+                    caption="📥 **Rasm tayyor!**\n\n🎯 Yana yuklash uchun boshqa link yuboring.\n\n🤖 @video\\_yuklab\\_ber\\_bot",
+                    parse_mode="Markdown"
+                )
             await msg.delete()
 
             # 10 daqiqadan keyin faylni o'chirish
             asyncio.create_task(delete_file_later(input_file, 600))
         else:
             await msg.edit_text(
-                "❌ **Video fayli topilmadi.**\n\n"
+                "❌ **Fayl topilmadi.**\n\n"
                 "🔁 Iltimos, linkni tekshirib qayta yuboring.",
                 parse_mode="Markdown"
             )
 
     except Exception as e:
-        logging.error(f"Error downloading video: {e}")
+        logging.error(f"Error downloading: {e}")
         await msg.edit_text(
             "❌ **Yuklab bo‘lmadi**\n\n"
             "🔁 Iltimos, linkni tekshirib qayta yuboring.\n"
