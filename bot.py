@@ -6,6 +6,8 @@ import yt_dlp
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.types import FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton
+import instaloader
+import re
 
 # Telegram bot token
 BOT_TOKEN = "8605496163:AAEg6ChP5cgYRdx3kAm-wmUnYl5rY_gGA5k"
@@ -53,49 +55,51 @@ async def handle_instagram_link(message: types.Message):
     )
 
     try:
-        # yt-dlp parametrlari
-        output_template = f"{DOWNLOAD_PATH}/%(id)s.%(ext)s"
-        ydl_opts = {
-            'outtmpl': output_template,
-            'format': 'best',
-            'quiet': True,
-            'no_warnings': True,
-            'nocheckcertificate': True,
-            'socket_timeout': 60,
-            'retries': 10,
-            'proxy': 'http://190.103.177.131:80',
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-            }
-        }
-        if os.path.exists('cookies.txt'):
-            ydl_opts['cookiefile'] = 'cookies.txt'
+        # Instaloader uchun
+        shortcode_match = re.search(r'/reel/([A-Za-z0-9_-]+)', url)
+        if shortcode_match:
+            shortcode = shortcode_match.group(1)
+            L = instaloader.Instaloader()
+            L.dirname_pattern = DOWNLOAD_PATH
+            post = instaloader.Post.from_shortcode(L.context, shortcode)
+            L.download_post(post, target=DOWNLOAD_PATH)
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            input_file = ydl.prepare_filename(info)
+            # Video faylini topish
+            input_file = None
+            for root, dirs, files in os.walk(DOWNLOAD_PATH):
+                for file in files:
+                    if file.endswith('.mp4') and shortcode in file:
+                        input_file = os.path.join(root, file)
+                        break
+                if input_file:
+                    break
 
-        if os.path.exists(input_file):
-            keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🎵 Faqat audio yuklash", callback_data=f"audio_{info['id']}")]
-            ])
-            video_file = FSInputFile(input_file)
-            await bot.send_video(
-                message.chat.id,
-                video_file,
-                caption="📥 **Video tayyor!**\n\n🎯 Yana yuklash uchun boshqa link yuboring.\n\n🤖 @video\\_yuklab\\_ber\\_bot",
-                reply_markup=keyboard,
-                parse_mode="Markdown"
-            )
-            await msg.delete()
+            if input_file:
+                keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="🎵 Faqat audio yuklash", callback_data=f"audio_{shortcode}")]
+                ])
+                video_file = FSInputFile(input_file)
+                await bot.send_video(
+                    message.chat.id,
+                    video_file,
+                    caption="📥 **Video tayyor!**\n\n🎯 Yana yuklash uchun boshqa link yuboring.\n\n🤖 @video\\_yuklab\\_ber\\_bot",
+                    reply_markup=keyboard,
+                    parse_mode="Markdown"
+                )
+                await msg.delete()
 
-            # 10 daqiqadan keyin faylni o'chirish
-            asyncio.create_task(delete_file_later(input_file, 600))
+                # 10 daqiqadan keyin faylni o'chirish
+                asyncio.create_task(delete_file_later(input_file, 600))
+            else:
+                await msg.edit_text(
+                    "❌ **Video fayli topilmadi.**\n\n"
+                    "🔁 Iltimos, linkni tekshirib qayta yuboring.",
+                    parse_mode="Markdown"
+                )
         else:
             await msg.edit_text(
-                "❌ **Video fayli topilmadi.**\n\n"
-                "🔁 Iltimos, linkni tekshirib qayta yuboring.",
+                "❌ **Link noto'g'ri.**\n\n"
+                "🔁 Faqat Instagram reel linklarini yuboring.",
                 parse_mode="Markdown"
             )
 
@@ -111,20 +115,23 @@ async def handle_instagram_link(message: types.Message):
 # Audio tugmasi bosilganda
 @dp.callback_query(F.data.startswith("audio_"))
 async def process_audio(callback: types.CallbackQuery):
-    video_id = callback.data.split("_")[1]
+    shortcode = callback.data.split("_")[1]
     input_file = None
 
     # Faylni topish
-    for file in os.listdir(DOWNLOAD_PATH):
-        if file.startswith(video_id) and not file.endswith(".mp3"):
-            input_file = os.path.join(DOWNLOAD_PATH, file)
+    for root, dirs, files in os.walk(DOWNLOAD_PATH):
+        for file in files:
+            if file.endswith('.mp4') and shortcode in file:
+                input_file = os.path.join(root, file)
+                break
+        if input_file:
             break
 
     if not input_file:
         await callback.answer("Fayl topilmadi.", show_alert=True)
         return
 
-    output_audio = os.path.join(DOWNLOAD_PATH, f"{video_id}.mp3")
+    output_audio = os.path.join(DOWNLOAD_PATH, f"{shortcode}.mp3")
 
     processing_msg = await bot.send_message(
         callback.message.chat.id,
