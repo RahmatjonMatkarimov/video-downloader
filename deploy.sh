@@ -36,6 +36,15 @@ fi
 if [[ "$SKIP_SYSTEMD" -eq 0 ]]; then
   echo "Installing systemd service..."
   SERVICE_PATH="$(pwd)"
+  ENV_FILE="${SERVICE_PATH}/.env"
+
+  if [[ ! -f "$ENV_FILE" ]]; then
+    echo ".env file missing, creating default .env file..."
+    cat > "$ENV_FILE" <<'EOF'
+BOT_TOKEN=8617618303:AAHJOrUSPANSM4hjjnWD5mk2j0w8IDjXRzI
+EOF
+  fi
+
   cat > /etc/systemd/system/telegram_bot.service <<EOF
 [Unit]
 Description=Telegram Instagram Downloader Bot
@@ -48,7 +57,8 @@ WorkingDirectory=${SERVICE_PATH}
 ExecStart=${SERVICE_PATH}/venv/bin/python ${SERVICE_PATH}/bot.py
 Restart=always
 RestartSec=10
-EnvironmentFile=${SERVICE_PATH}/.env
+EnvironmentFile=-${ENV_FILE}
+Environment=PATH=${SERVICE_PATH}/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=telegram_bot
@@ -56,6 +66,7 @@ SyslogIdentifier=telegram_bot
 [Install]
 WantedBy=multi-user.target
 EOF
+
   systemctl daemon-reload
   systemctl enable telegram_bot
   systemctl restart telegram_bot
