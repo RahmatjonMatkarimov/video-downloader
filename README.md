@@ -18,6 +18,8 @@
    ./deploy.sh
    ```
 
+   If you cloned to a different directory, replace `/opt/telegram_bot` with your actual path.
+
 4. If you need to change the bot token, edit `.env`:
    ```bash
    nano .env

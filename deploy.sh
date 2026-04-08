@@ -35,11 +35,31 @@ fi
 
 if [[ "$SKIP_SYSTEMD" -eq 0 ]]; then
   echo "Installing systemd service..."
-  cp telegram_bot.service /etc/systemd/system/telegram_bot.service
+  SERVICE_PATH="$(pwd)"
+  cat > /etc/systemd/system/telegram_bot.service <<EOF
+[Unit]
+Description=Telegram Instagram Downloader Bot
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=${SERVICE_PATH}
+ExecStart=${SERVICE_PATH}/venv/bin/python ${SERVICE_PATH}/bot.py
+Restart=always
+RestartSec=10
+EnvironmentFile=${SERVICE_PATH}/.env
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=telegram_bot
+
+[Install]
+WantedBy=multi-user.target
+EOF
   systemctl daemon-reload
   systemctl enable telegram_bot
   systemctl restart telegram_bot
-  echo "Systemd service installed and started."
+  echo "Systemd service installed and started from ${SERVICE_PATH}."
 else
   echo "Run this script as root to install and start the service."
 fi
