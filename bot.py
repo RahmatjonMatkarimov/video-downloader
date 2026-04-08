@@ -8,7 +8,7 @@ from aiogram.filters import Command
 from aiogram.types import FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton
 
 # Telegram bot token
-BOT_TOKEN = "8605496163:AAGZqhQBP00gLgn2F1SEWh7Ix5Ti77tufW4"
+BOT_TOKEN = "8605496163:AAEg6ChP5cgYRdx3kAm-wmUnYl5rY_gGA5k"
 
 # Bot va dispatcher
 bot = Bot(token=BOT_TOKEN)
@@ -63,6 +63,7 @@ async def handle_instagram_link(message: types.Message):
             'nocheckcertificate': True,
             'socket_timeout': 60,
             'retries': 10,
+            'proxy': 'http://190.103.177.131:80',
             'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
             'http_headers': {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
